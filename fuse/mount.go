@@ -4,6 +4,7 @@ package fuse
 // #include <stdlib.h>
 import "C"
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -45,22 +46,30 @@ func MountAndRun(args []string, fs FileSystem) int {
 
 	mp := C.GoString(mountpoint)
 
-	RegisterFS(mp, fs, se, ch)
-	defer DeregisterFS(mp)
+	registerFS(mp, fs, se, ch)
+	defer deregisterFS(mp)
 
 	return int(C.Run(mountpoint, se, ch))
 }
 
 func UMount(mountpoint string) {
 	if !filepath.IsAbs(mountpoint) {
-		cwd, _ := os.Getwd()
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Printf("couldn't get current working directory: %v\n", err)
+			return
+		}
 
 		mountpoint = filepath.Join(cwd, mountpoint)
 	}
 
-	mountpoint, _ = filepath.Abs(mountpoint)
+	mountpoint, err := filepath.Abs(mountpoint)
+	if err != nil {
+		fmt.Printf("couldn't get absolute path of %s: %v\n", mountpoint, err)
+		return
+	}
 
-	minfo := getMountInfo(mountpoint)
+	mcfg := getMountCfg(mountpoint)
 
-	C.Exit(C.CString(mountpoint), minfo.se, minfo.ch)
+	C.Exit(C.CString(mountpoint), mcfg.se, mcfg.ch)
 }
