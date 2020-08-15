@@ -2,7 +2,6 @@ package fuse
 
 import (
 	"reflect"
-	"sync"
 	"time"
 	"unsafe"
 )
@@ -11,65 +10,11 @@ import (
 // #include <stdlib.h>  // for free()
 import "C"
 
-// State which tracks instances of FileSystem, with a unique identifier used
-// by C code.  This avoids passing Go pointers into C code.
-var fsMapLock sync.RWMutex
-var rawFSMap = make(map[string]MountInfo)
-
-type MountInfo struct {
-	fs FileSystem
-	se *C.struct_fuse_session
-	ch *C.struct_fuse_chan
-}
-
 // enableBridgeTestMode can be used to enable the global bridge test mode.
 // This prevents fuse_reply callbacks, since there is no active FUSE filesystem.
 // Used to allow internal testing of C <-> Go translation layers.
 func enableBridgeTestMode() {
 	C.enable_bridge_test_mode()
-}
-
-// RegisterFS registers a filesystem with the bridge layer.
-// Returns an integer id, which identifies the filesystem instance.
-//
-// When calling the FUSE lowlevel initialization method (eg fuse_lowlevel_new), the userdata
-// argument must be a pointer to an integer holding this id value.  The bridge methods use this to
-// determine which filesystem will handle FUSE callbacks.
-//
-// When the filesystem is no longer active, DeregisterFS can be called to release resources.
-func RegisterFS(mountpoint string, fs FileSystem, se *C.struct_fuse_session, ch *C.struct_fuse_chan) {
-	fsMapLock.Lock()
-	defer fsMapLock.Unlock()
-
-	rawFSMap[mountpoint] = MountInfo{
-		fs: fs,
-		se: se,
-		ch: ch,
-	}
-}
-
-// DeregisterFS releases a previously allocated filesystem from RegisterRawFs.
-func DeregisterFS(mountpoint string) {
-	fsMapLock.Lock()
-	defer fsMapLock.Unlock()
-
-	delete(rawFSMap, mountpoint)
-}
-
-// getFS returns the filesystem for the given mountpoint.
-func getFS(mountpoint string) FileSystem {
-	fsMapLock.RLock()
-	defer fsMapLock.RUnlock()
-
-	mi := rawFSMap[mountpoint]
-	return mi.fs
-}
-
-func getMountInfo(mountpoint string) MountInfo {
-	fsMapLock.RLock()
-	defer fsMapLock.RUnlock()
-
-	return rawFSMap[mountpoint]
 }
 
 // Version returns the version number from the linked libfuse client implementation.
