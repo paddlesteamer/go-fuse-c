@@ -222,8 +222,12 @@ func ll_Read(mountpoint *C.char, req C.fuse_req_t, ino C.fuse_ino_t, size C.size
 		return C.int(err)
 	}
 
+	if len(buf) == 0 {
+		return C.reply_buf(req, nil, 0)
+	}
+
 	ptr := unsafe.Pointer(&buf[0])
-	return C.reply_buf(req, (*C.char)(ptr), size)
+	return C.reply_buf(req, (*C.char)(ptr), C.ulong(len(buf)))
 }
 
 //export ll_Write
